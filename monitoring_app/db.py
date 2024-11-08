@@ -3,18 +3,16 @@ import psycopg2
 from psycopg2.extras import DictCursor
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
 
-tz = ZoneInfo("Europe/Berlin")
+tz = ZoneInfo("Africa/Nairobi")
 
+# Load the environment variables from the .env file
+load_dotenv()
 
 def get_db_connection():
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST", "postgres"),
-        database=os.getenv("POSTGRES_DB", "course_assistant"),
-        user=os.getenv("POSTGRES_USER", "your_username"),
-        password=os.getenv("POSTGRES_PASSWORD", "your_password"),
-    )
-
+    connection_string = f"postgresql://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}@172.18.0.4:5432/{os.getenv('POSTGRES_DB')}"
+    return psycopg2.connect(connection_string)
 
 def init_db():
     conn = get_db_connection()
@@ -28,7 +26,7 @@ def init_db():
                     id TEXT PRIMARY KEY,
                     question TEXT NOT NULL,
                     answer TEXT NOT NULL,
-                    course TEXT NOT NULL,
+                    article TEXT NOT NULL,
                     model_used TEXT NOT NULL,
                     response_time FLOAT NOT NULL,
                     relevance TEXT NOT NULL,
@@ -39,7 +37,6 @@ def init_db():
                     eval_prompt_tokens INTEGER NOT NULL,
                     eval_completion_tokens INTEGER NOT NULL,
                     eval_total_tokens INTEGER NOT NULL,
-                    openai_cost FLOAT NOT NULL,
                     timestamp TIMESTAMP WITH TIME ZONE NOT NULL
                 )
             """)
@@ -56,7 +53,7 @@ def init_db():
         conn.close()
 
 
-def save_conversation(conversation_id, question, answer_data, course, timestamp=None):
+def save_conversation(conversation_id, question, answer_data, article, timestamp=None):
     if timestamp is None:
         timestamp = datetime.now(tz)
     
@@ -66,7 +63,7 @@ def save_conversation(conversation_id, question, answer_data, course, timestamp=
             cur.execute(
                 """
                 INSERT INTO conversations 
-                (id, question, answer, course, model_used, response_time, relevance, 
+                (id, question, answer, article, model_used, response_time, relevance, 
                 relevance_explanation, prompt_tokens, completion_tokens, total_tokens, 
                 eval_prompt_tokens, eval_completion_tokens, eval_total_tokens, openai_cost, timestamp)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, CURRENT_TIMESTAMP))
@@ -75,7 +72,7 @@ def save_conversation(conversation_id, question, answer_data, course, timestamp=
                     conversation_id,
                     question,
                     answer_data["answer"],
-                    course,
+                    article,
                     answer_data["model_used"],
                     answer_data["response_time"],
                     answer_data["relevance"],
@@ -86,7 +83,6 @@ def save_conversation(conversation_id, question, answer_data, course, timestamp=
                     answer_data["eval_prompt_tokens"],
                     answer_data["eval_completion_tokens"],
                     answer_data["eval_total_tokens"],
-                    answer_data["openai_cost"],
                     timestamp,
                 ),
             )
