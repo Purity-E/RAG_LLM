@@ -20,7 +20,7 @@ INDEX_NAME = os.getenv("INDEX_NAME")
 
 def fetch_documents():
     print("Fetching documents...")
-    with open('documents-with-ids.json', 'r') as file:  # Replace 'data.json' with the path to your file
+    with open('/home/purity/llm-zoomcamp/project/documents-with-ids.json', 'r') as file:  # Replace 'data.json' with the path to your file
         documents = json.load(file)
     print(f"Fetched {len(documents)} documents")
     return documents
@@ -28,7 +28,7 @@ def fetch_documents():
 
 def fetch_ground_truth():
     print("Fetching ground truth data...")
-    df_ground_truth = pd.read_csv('ground-truth-data.csv')
+    df_ground_truth = pd.read_csv('/home/purity/llm-zoomcamp/project/ground-truth-data.csv')
     ground_truth = df_ground_truth.to_dict(orient='records')
     print(f"Fetched {len(ground_truth)} ground truth records")
     return ground_truth
@@ -41,7 +41,8 @@ def load_model():
 
 def setup_elasticsearch():
     print("Setting up Elasticsearch...")
-    es_client = Elasticsearch(ELASTIC_URL)
+    es_client = Elasticsearch(ELASTIC_URL,
+    request_timeout=30,)
 
     index_settings = {
     "settings": {
@@ -87,9 +88,9 @@ def clean_doc(documents):
 def index_documents(es_client, documents, model):
     print("Indexing documents...")
     for doc in tqdm(documents):
-        question = doc["question"]
-        text = doc["text"]
-        doc["question_text_vector"] = model.encode(question + " " + text).tolist()
+        question = doc['question']
+        text = doc['body']
+        doc['question_text_vector'] = model.encode(question + ' ' + text)
         es_client.index(index=INDEX_NAME, document=doc)
     print(f"Indexed {len(documents)} documents")
 
@@ -100,7 +101,16 @@ def main():
     print("Starting the indexing process...")
 
     documents = fetch_documents()
-    new_documents = index_documents(documents)
+    ground_truth = fetch_ground_truth()
+    # merging the ground truth dict and data dict on 'id' to get the questions on the data dict
+    for i in documents:
+        for j in ground_truth:
+            if j['document'] == i['id']:
+                # Add the `question` key and value from dict1 to dict2
+                i['question'] = j['question']
+
+    new_documents = clean_doc(documents) #getting rid of documents without questions
+    
     model = load_model()
     es_client = setup_elasticsearch()
     index_documents(es_client, new_documents, model)
